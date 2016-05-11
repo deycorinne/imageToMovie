@@ -52,52 +52,44 @@ exports.imageToMovie = function(imageArray, imageArrayDirectory, options, fn) {
 
   var jpgImageArray = [];
 
-  // go through each image in array and check format-- change to .jpg & convert to buffer for easy conversion to movie
+  // go through each image in array and convert to buffer for easy conversion to movie
   // also make sure all images are the same size
   async.each(imageArray, function(imageFile, callback) {
-      var temp = imageFile.split('.');
-      var imageTitle = temp[0];
-      var extension = temp[temp.length - 1];
 
-      if (extension !== 'jpg') {
-        fs.readFile(imageArrayDirectory + imageFile, function(err, data) {
+
+      fs.readFile(imageArrayDirectory + imageFile, function(err, data) {
+        if (err) {
+          return callback('There was an issue processing your files.'); // Fail if the file can't be read.
+        }
+
+        var magick = imageMagick(data); // should now be a buffer
+        magick.resize(options.size, options.size).stream(function(err, stdout, stderr) {
           if (err) {
-            return callback('There was an issue processing your files'); // Fail if the file can't be read.
+            var error = "Could not export image.";
+            logger.error(error, err)
+            return res.status(500).json({
+              errors: [{
+                title: error,
+                status: 500
+              }]
+            })
           }
+          var buffer = new Buffer(0);
+          stdout.on('data', function(d) {
+            buffer = Buffer.concat([buffer, d]);
+          });
+          stdout.on('end', function() {
+            fs.writeFile(imageArrayDirectory + options.size + imageFile, buffer, function(err) {
+              if (err) {
+                return callback('There was an issue saving your files in the new format'); // Fail if the file can't be saved.
+              }
 
-          var magick = imageMagick(data); // should now be a buffer
-          magick.setFormat("jpg");
-          magick.resize(options.size, options.size);
-
-          // save newly formatted image to the folder & push path to array
-          fs.writeFile(imageArrayDirectory + imageTitle + '.jpg', magick.sourceBuffer, function(err) {
-            if (err) {
-              return callback('There was an issue saving your files in the new format'); // Fail if the file can't be saved.
-            }
-
-            jpgImageArray.push(imageArrayDirectory + imageTitle + '.jpg');
-            callback()
+              jpgImageArray.push(imageArrayDirectory + imageFile);
+              callback();
+            });
           });
         });
-      } else {
-        fs.readFile(imageArrayDirectory + imageFile, function(err, data) {
-          if (err) {
-            return callback('There was an issue processing your files.'); // Fail if the file can't be read.
-          }
-
-          var magick = imageMagick(data); // should now be a buffer
-          magick.resize(options.size, options.size); // resize
-
-          fs.writeFile(imageArrayDirectory + imageTitle + '.jpg', magick.sourceBuffer, function(err) {
-            if (err) {
-              return callback('There was an issue saving your files in the new format'); // Fail if the file can't be saved.
-            }
-
-            jpgImageArray.push(imageArrayDirectory + imageFile);
-            callback();
-          });
-        });
-      }
+      });
     },
     function(err) {
       if (err) {

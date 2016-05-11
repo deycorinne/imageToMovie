@@ -17,85 +17,114 @@ var ffmpeg = require("ffmpeg");
 var imageMagick = gm.subClass({
   imageMagick: true
 });
-
-exports.imageToMovie = function(imageArray, imageArrayDirectory, title, videoFormat, duration, fn) {
-  // TODO: make async and remove setTimeout
+// options- title, format, duration, size
+exports.imageToMovie = function(imageArray, imageArrayDirectory, options, fn) {
 
   // validate inputs given
   if (!_.isArray(imageArray)) {
     throw new Error('An array of images must be provided to complete this action');
   }
 
-  if (!_.isString(videoFormat) || (allowedFormats.indexOf(videoFormat) < 0)) {
+  if (!_.isString(imageArrayDirectory)) {
+    throw new Error('Please provide a valid directory for your image array');
+  }
+
+  if (options.format && (!_.isString(options.format) || (allowedFormats.indexOf(options.format) < 0))) {
     throw new Error('Please provide a valid video format');
   }
 
-  if (!_.isString(title)) {
+  if (options.title && !_.isString(options.title)) {
     throw new Error('Please provide a valid title for your video');
   }
 
-  if (!_.isNumber(duration)) {
+  if (options.duration && (!_.isNumber(options.duration) || options.duration < 30)) {
     throw new Error('Please provide a valid duration');
   }
+
+  if (options.size && !_.isNumber(options.size)) {
+    throw new Error('Please provide a valid video size');
+  }
+
+  options.format = options.format || 'mp4';
+  options.title = options.title || 'video';
+  options.duration = options.duration || 50;
+  options.size = options.size || 200;
 
   var jpgImageArray = [];
 
   // go through each image in array and check format-- change to .jpg & convert to buffer for easy conversion to movie
   // also make sure all images are the same size
   async.each(imageArray, function(imageFile, callback) {
-    var temp = imageFile.split('.');
-    var imageTitle = temp[0];
-    var extension = temp[temp.length - 1];
+      var temp = imageFile.split('.');
+      var imageTitle = temp[0];
+      var extension = temp[temp.length - 1];
 
-    if (extension !== 'jpg') {
-      fs.readFile(imageArrayDirectory + imageFile, function(err, data) {
-        if (err) {
-          return callback('There was an issue processing your files'); // Fail if the file can't be read.
-        }
-
-        var magick = imageMagick(data); // should now be a buffer
-        magick.setFormat("jpg");
-
-        // save newly formatted image to the folder & push path to array
-        fs.writeFile(imageArrayDirectory + imageTitle + '.jpg', magick.sourceBuffer, function(err) {
+      if (extension !== 'jpg') {
+        fs.readFile(imageArrayDirectory + imageFile, function(err, data) {
           if (err) {
-            return callback('There was an issue saving your files in the new format'); // Fail if the file can't be saved.
+            return callback('There was an issue processing your files'); // Fail if the file can't be read.
           }
 
-          jpgImageArray.push(imageArrayDirectory + imageTitle + '.jpg');
-          callback()
+          var magick = imageMagick(data); // should now be a buffer
+          magick.setFormat("jpg");
+          magick.resize(options.size, options.size);
+
+          // save newly formatted image to the folder & push path to array
+          fs.writeFile(imageArrayDirectory + imageTitle + '.jpg', magick.sourceBuffer, function(err) {
+            if (err) {
+              return callback('There was an issue saving your files in the new format'); // Fail if the file can't be saved.
+            }
+
+            jpgImageArray.push(imageArrayDirectory + imageTitle + '.jpg');
+            callback()
+          });
         });
-      });
-    } else {
-      jpgImageArray.push(imageArrayDirectory + imageFile);
-      callback();
-    }
-  }, function(err) {
-    if (err) {
-      throw new Error(err);
-    }
+      } else {
+        fs.readFile(imageArrayDirectory + imageFile, function(err, data) {
+          if (err) {
+            return callback('There was an issue processing your files.'); // Fail if the file can't be read.
+          }
 
-    var videoTitle = title + '.' + videoFormat;
-    var videoOptions = {
-      fps: duration,
-      transition: false,
-      videoBitrate: 1024,
-      videoCodec: 'libx264',
-      size: '640x?',
-      format: videoFormat
-    }
+          var magick = imageMagick(data); // should now be a buffer
+          magick.resize(options.size, options.size); // resize
 
-    videoshow(jpgImageArray, videoOptions)
-      .save(videoTitle)
-      .on('start', function(command) {
-        console.log('ffmpeg process started');
-      })
-      .on('error', function(err, stdout, stderr) {
-        console.error('Error:', err)
-        console.error('\nffmpeg stderr:', stderr);
-      })
-      .on('end', function(output) {
-        console.error('Video created in:', output);
-      })
-  });
+          fs.writeFile(imageArrayDirectory + imageTitle + '.jpg', magick.sourceBuffer, function(err) {
+            if (err) {
+              return callback('There was an issue saving your files in the new format'); // Fail if the file can't be saved.
+            }
+
+            jpgImageArray.push(imageArrayDirectory + imageFile);
+            callback();
+          });
+        });
+      }
+    },
+    function(err) {
+      if (err) {
+        throw new Error(err);
+      }
+
+      var videoTitle = options.title + '.' + options.format;
+      var videoOptions = {
+        fps: options.duration,
+        transition: false,
+        videoBitrate: 1024,
+        videoCodec: 'libx264',
+        size: '640x?',
+        format: options.format
+      }
+
+      videoshow(jpgImageArray, videoOptions)
+        .save(videoTitle)
+        .on('start', function(command) {
+          console.log('ffmpeg process started');
+        })
+        .on('error', function(err, stdout, stderr) {
+          console.error('Error:', err)
+          console.error('\nffmpeg stderr:', stderr);
+        })
+        .on('end', function(output) {
+          console.error('Video created in:', output);
+        })
+    });
 }

@@ -16,7 +16,15 @@ fs.readdir('./testImages', function(err, files) {
   if (err) {
     throw new Error('Trouble reading files for test');
   }
-  index.imageToMovie(files, './testImages/', 'video', 'mp4', 10, function(err, movie) {
+
+  var options = {
+    title: 'myvideo',
+    duration: 50,
+    size: 200,
+    format: 'mp4'
+  }
+
+  index.imageToMovie(files, './testImages/', options, function(err, movie) {
     console.log(err);
     console.log(movie);
   });

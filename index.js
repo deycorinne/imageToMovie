@@ -55,8 +55,6 @@ exports.imageToMovie = function(imageArray, imageArrayDirectory, options, fn) {
   // go through each image in array and convert to buffer for easy conversion to movie
   // also make sure all images are the same size
   async.each(imageArray, function(imageFile, callback) {
-
-
       fs.readFile(imageArrayDirectory + imageFile, function(err, data) {
         if (err) {
           return callback('There was an issue processing your files.'); // Fail if the file can't be read.
@@ -84,7 +82,7 @@ exports.imageToMovie = function(imageArray, imageArrayDirectory, options, fn) {
                 return callback('There was an issue saving your files in the new format'); // Fail if the file can't be saved.
               }
 
-              jpgImageArray.push(imageArrayDirectory + imageFile);
+              jpgImageArray.push(imageArrayDirectory + options.size + imageFile);
               callback();
             });
           });

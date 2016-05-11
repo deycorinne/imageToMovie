@@ -22,27 +22,27 @@ exports.imageToMovie = function(imageArray, imageArrayDirectory, options, fn) {
 
   // validate inputs given
   if (!_.isArray(imageArray)) {
-    throw new Error('An array of images must be provided to complete this action');
+    return fn('An array of images must be provided to complete this action', null);
   }
 
   if (!_.isString(imageArrayDirectory)) {
-    throw new Error('Please provide a valid directory for your image array');
+    return fn('Please provide a valid directory for your image array', null);
   }
 
   if (options.format && (!_.isString(options.format) || (allowedFormats.indexOf(options.format) < 0))) {
-    throw new Error('Please provide a valid video format');
+    return fn('Please provide a valid video format', null);
   }
 
   if (options.title && !_.isString(options.title)) {
-    throw new Error('Please provide a valid title for your video');
+    return fn('Please provide a valid title for your video', null);
   }
 
   if (options.duration && (!_.isNumber(options.duration) || options.duration < 30)) {
-    throw new Error('Please provide a valid duration');
+    return fn('Please provide a valid duration', null);
   }
 
   if (options.size && !_.isNumber(options.size)) {
-    throw new Error('Please provide a valid video size');
+    return fn('Please provide a valid video size', null);
   }
 
   options.format = options.format || 'mp4';
@@ -101,7 +101,7 @@ exports.imageToMovie = function(imageArray, imageArrayDirectory, options, fn) {
     },
     function(err) {
       if (err) {
-        throw new Error(err);
+        return fn(err, null);
       }
 
       var videoTitle = options.title + '.' + options.format;
@@ -115,16 +115,12 @@ exports.imageToMovie = function(imageArray, imageArrayDirectory, options, fn) {
       }
 
       videoshow(jpgImageArray, videoOptions)
-        .save(videoTitle)
-        .on('start', function(command) {
-          console.log('ffmpeg process started');
-        })
+        .save(imageArrayDirectory + videoTitle)
         .on('error', function(err, stdout, stderr) {
-          console.error('Error:', err)
-          console.error('\nffmpeg stderr:', stderr);
+          return fn(err, null);
         })
         .on('end', function(output) {
-          console.error('Video created in:', output);
+          return fn(null, output);
         })
     });
 }

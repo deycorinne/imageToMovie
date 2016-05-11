@@ -9,10 +9,11 @@
 
 var allowedFormats = ["hls", "mp4"];
 var _ = require("underscore");
-var videoshow = require('videoshow');
-var fs = require('fs');
-var gm = require('gm');
-var ffmpeg = require('ffmpeg');
+var async = require("async");
+var videoshow = require("videoshow");
+var fs = require("fs");
+var gm = require("gm");
+var ffmpeg = require("ffmpeg");
 var imageMagick = gm.subClass({
   imageMagick: true
 });
@@ -41,8 +42,7 @@ exports.imageToMovie = function(imageArray, imageArrayDirectory, title, videoFor
 
   // go through each image in array and check format-- change to .jpg & convert to buffer for easy conversion to movie
   // also make sure all images are the same size
-  for (var i = 0; i < imageArray.length; i++) {
-    var imageFile = imageArray[i];
+  async.each(imageArray, function(imageFile, callback) {
     var temp = imageFile.split('.');
     var imageTitle = temp[0];
     var extension = temp[temp.length - 1];
@@ -50,26 +50,31 @@ exports.imageToMovie = function(imageArray, imageArrayDirectory, title, videoFor
     if (extension !== 'jpg') {
       fs.readFile(imageArrayDirectory + imageFile, function(err, data) {
         if (err) {
-          throw new Error('There was an issue processing your files'); // Fail if the file can't be read.
+          return callback('There was an issue processing your files'); // Fail if the file can't be read.
         }
 
         var magick = imageMagick(data); // should now be a buffer
         magick.setFormat("jpg");
 
+        // save newly formatted image to the folder & push path to array
         fs.writeFile(imageArrayDirectory + imageTitle + '.jpg', magick.sourceBuffer, function(err) {
           if (err) {
-            throw new Error('There was an issue saving your files in the new format'); // Fail if the file can't be saved.
+            return callback('There was an issue saving your files in the new format'); // Fail if the file can't be saved.
           }
 
           jpgImageArray.push(imageArrayDirectory + imageTitle + '.jpg');
+          callback()
         });
       });
     } else {
       jpgImageArray.push(imageArrayDirectory + imageFile);
+      callback();
     }
-  }
+  }, function(err) {
+    if (err) {
+      throw new Error(err);
+    }
 
-  setTimeout(function() {
     var videoTitle = title + '.' + videoFormat;
     var videoOptions = {
       fps: duration,
@@ -77,21 +82,20 @@ exports.imageToMovie = function(imageArray, imageArrayDirectory, title, videoFor
       videoBitrate: 1024,
       videoCodec: 'libx264',
       size: '640x?',
-      audioBitrate: '128k',
-      audioChannels: 2,
       format: videoFormat
     }
+
     videoshow(jpgImageArray, videoOptions)
       .save(videoTitle)
       .on('start', function(command) {
-        console.log('ffmpeg process started:', command)
+        console.log('ffmpeg process started');
       })
       .on('error', function(err, stdout, stderr) {
         console.error('Error:', err)
-        console.error('ffmpeg stderr:', stderr)
+        console.error('\nffmpeg stderr:', stderr);
       })
       .on('end', function(output) {
-        console.error('Video created in:', output)
+        console.error('Video created in:', output);
       })
-  }, 2000);
+  });
 }

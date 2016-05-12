@@ -1,5 +1,5 @@
 
 .DS_Store
 config.js
-ffmpeg-3.0.2
-testImages
+/ffmpeg-3.0.2
+/testImages

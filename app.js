@@ -10,6 +10,7 @@ var server = app.listen(app.get('port'), function() {
 });
 
 // import our new function
+/*
 var index = require('./index.js');
 
 fs.readdir('./testImages', function(err, files) {
@@ -29,3 +30,4 @@ fs.readdir('./testImages', function(err, files) {
     console.log(movie);
   });
 })
+*/

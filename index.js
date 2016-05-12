@@ -61,10 +61,11 @@ exports.imageToMovie = function(imageArray, imageArrayDirectory, options, fn) {
         }
 
         var magick = imageMagick(data); // should now be a buffer
-        magick.resize(options.size, options.size).stream(function(err, stdout, stderr) {
-          if (err) {
-            var error = "Could not export image.";
-            logger.error(error, err)
+        // check size
+        magick.size(function(err, specs) {
+          if (err || !_.isObject(specs)) {
+            var error = "Could not get image size.";
+            logger.error(error, err, specs)
             return res.status(500).json({
               errors: [{
                 title: error,
@@ -72,18 +73,46 @@ exports.imageToMovie = function(imageArray, imageArrayDirectory, options, fn) {
               }]
             })
           }
-          var buffer = new Buffer(0);
-          stdout.on('data', function(d) {
-            buffer = Buffer.concat([buffer, d]);
-          });
-          stdout.on('end', function() {
-            fs.writeFile(imageArrayDirectory + options.size + imageFile, buffer, function(err) {
-              if (err) {
-                return callback('There was an issue saving your files in the new format'); // Fail if the file can't be saved.
-              }
 
-              jpgImageArray.push(imageArrayDirectory + options.size + imageFile);
-              callback();
+          if (specs.width !== specs.height) {
+            var min = Math.min(specs.width, specs.height);
+            if (specs.width > specs.height) {
+              var x = specs.height * .25;
+              var y = 0;
+              magick.crop(min, min, x, y);
+            } else if (specs.height > specs.width) {
+              var x = 0;
+              var y = specs.width * .25;
+              magick.crop(min, min, x, y);
+            } else { // image is a square
+              magick.crop(min, min, 0, 0);
+            }
+          }
+
+          magick.resize(options.size, options.size).stream(function(err, stdout, stderr) {
+            if (err) {
+              var error = "Could not export image.";
+              logger.error(error, err)
+              return res.status(500).json({
+                errors: [{
+                  title: error,
+                  status: 500
+                }]
+              })
+            }
+            var buffer = new Buffer(0);
+            stdout.on('data', function(d) {
+              buffer = Buffer.concat([buffer, d]);
+            });
+            stdout.on('end', function() {
+              fs.writeFile(imageArrayDirectory + options.size + imageFile, buffer, function(err) {
+                if (err) {
+                  return callback('There was an issue saving your files in the new format'); // Fail if the file can't be saved.
+                }
+
+                jpgImageArray.push(imageArrayDirectory + options.size + imageFile);
+                callback();
+              });
             });
           });
         });
@@ -100,7 +129,6 @@ exports.imageToMovie = function(imageArray, imageArrayDirectory, options, fn) {
         transition: false,
         videoBitrate: 1024,
         videoCodec: 'libx264',
-        size: '640x?',
         format: options.format
       }
 

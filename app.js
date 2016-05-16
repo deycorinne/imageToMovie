@@ -10,24 +10,41 @@ var server = app.listen(app.get('port'), function() {
 });
 
 // import our new function
-/*
-var index = require('./index.js');
+var controller = require('./controller.js');
 
-fs.readdir('./testImages', function(err, files) {
+var options = {
+  title: 'myvideo',
+  duration: 50,
+  size: 200,
+  format: 'mp4',
+  delete: false
+}
+
+var s3Keys = [
+  'image1',
+  'image2',
+  'image3',
+  'image4'
+];
+
+// var config = require('./config.js');
+// var AWS = require('aws-sdk');
+// var s3 = new AWS.S3({
+//   accessKeyId: config.aws.accessKeyId,
+//   secretAccessKey: config.aws.secretAccessKey
+// });
+//
+//
+// s3.listObjects({
+//   Bucket: 'corinne-test'
+// }, function(err, data) {
+//   console.log('ERROR:', err);
+//   console.log('DATA', data);
+// });
+
+controller.imageToMovieS3(s3Keys, 'corinne-test', 'myvideo', options, function(err, result) {
   if (err) {
-    throw new Error('Trouble reading files for test');
+    console.log('ERROR: ', err);
   }
-
-  var options = {
-    title: 'myvideo',
-    duration: 50,
-    size: 200,
-    format: 'mp4'
-  }
-
-  index.imageToMovie(files, './testImages/', options, function(err, movie) {
-    console.log(err);
-    console.log(movie);
-  });
-})
-*/
+  console.log('RESULT:', result);
+});

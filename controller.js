@@ -280,48 +280,58 @@ exports.imageToMovieS3 = function(s3KeyArray, bucket, videoKey, options, fn) {
           return fn(err);
         })
         .on('end', function(output) {
-          console.log('output', output)
-          var details = {
-            Bucket: bucket,
-            Key: videoKey,
-            ContentType: 'video/mp4',
-            Body: output
-          };
 
-          s3.putObject(details, function(err, data) {
+          fs.readFile('temp/' + videoKey + '.' + options.format, function(err, data) {
             if (err) {
-              console.log(err);
-              return fn("Unable to save image.");
+              return callback('There was an issue reading the video file'); // Fail if the file can't be read.
             }
+            var details = {
+              Bucket: bucket,
+              Key: videoKey,
+              ContentType: 'video/mp4',
+              Body: data
+            };
 
-            async.each(jpgImageArray, function(jpgImage, callback) {
-              fs.unlink(jpgImage, function(err) {
-                if (err) {
-                  return callback('There was an issue removing the temp files');
-                }
-                callback();
-              });
-            }, function(err) {
+            s3.putObject(details, function(err, data) {
               if (err) {
-                return fn(err);
+                return fn("Unable to save video to s3.");
               }
 
-              if (!options.delete) {
-                return fn(null);
-              }
-
-              var deleteparams = {
-                Bucket: bucket,
-                Delete: {
-                  Objects: s3KeyArray
-                }
-              };
-
-              s3.deleteObjects(deleteparams, function(err, data) {
+              async.each(jpgImageArray, function(jpgImage, callback) {
+                fs.unlink(jpgImage, function(err) {
+                  if (err) {
+                    return callback('There was an issue removing the temp files');
+                  }
+                  callback();
+                });
+              }, function(err) {
                 if (err) {
-                  return fn("Issue while deleting images from s3");
+                  return fn(err);
                 }
-                return fn(null);
+
+                fs.unlink('temp/' + videoKey + '.' + options.format, function(err) {
+                  if (err) {
+                    return fn('There was an issue removing the temp video file');
+                  }
+
+                  if (!options.delete) {
+                    return fn(null);
+                  }
+
+                  var deleteparams = {
+                    Bucket: bucket,
+                    Delete: {
+                      Objects: s3KeyArray
+                    }
+                  };
+
+                  s3.deleteObjects(deleteparams, function(err, data) {
+                    if (err) {
+                      return fn("Issue while deleting images from s3");
+                    }
+                    return fn(null);
+                  });
+                });
               });
             });
           });

@@ -17,7 +17,7 @@ var options = {
   duration: 50,
   size: 200,
   format: 'mp4',
-  delete: false
+  delete: true
 }
 
 var s3Keys = [

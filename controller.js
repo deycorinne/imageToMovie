@@ -29,6 +29,7 @@ var s3 = new AWS.S3({
   secretAccessKey: config.aws.secretAccessKey
 });
 
+//TODO: fix duration * optimize bc this is soo slow
 
 // options- title, format, duration, size
 exports.imageToMovie = function(imageArray, imageArrayDirectory, options, fn) {
@@ -280,7 +281,6 @@ exports.imageToMovieS3 = function(s3KeyArray, bucket, videoKey, options, fn) {
           return fn(err);
         })
         .on('end', function(output) {
-
           fs.readFile('temp/' + videoKey + '.' + options.format, function(err, data) {
             if (err) {
               return callback('There was an issue reading the video file'); // Fail if the file can't be read.
@@ -318,15 +318,22 @@ exports.imageToMovieS3 = function(s3KeyArray, bucket, videoKey, options, fn) {
                     return fn(null);
                   }
 
+                  var keyPairs = s3KeyArray.map(function(obj) {
+                    return {
+                      Key: obj
+                    }
+                  });
+
                   var deleteparams = {
                     Bucket: bucket,
                     Delete: {
-                      Objects: s3KeyArray
+                      Objects: keyPairs
                     }
                   };
 
-                  s3.deleteObjects(deleteparams, function(err, data) {
+                  s3.deleteObjects(deleteparams, function(err) {
                     if (err) {
+                      console.log(err);
                       return fn("Issue while deleting images from s3");
                     }
                     return fn(null);

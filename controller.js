@@ -31,6 +31,7 @@ var s3 = new AWS.S3({
 });
 
 //TODO: fix duration
+//TODO: pipe directly to s3 if possible
 exports.imageToMovieS3 = function(s3KeyArray, bucket, videoKey, options, fn) {
 
   // validate inputs given
@@ -160,15 +161,23 @@ exports.imageToMovieS3 = function(s3KeyArray, bucket, videoKey, options, fn) {
         return fn(err, null);
       }
 
-      command.fps(options.fps)
-        .duration(options.duration)
-        .size(options.size + 'x?')
-        .on('error', function(err, stdout, stderr) {
+
+      //.fps(options.fps)
+      //.loop(options.duration)
+      //.size(options.size + 'x?')
+      command.on('error', function(err, stdout, stderr) {
+          console.log(err);
+          console.log(stderr);
           console.log('Cannot process video: ' + err.message);
           return fn('Could not process video');
         })
-        .save('temp/' + videoKey + '.' + options.format)
         .on('end', function(stdout, stderr) {
+          console.log('ended');
+        })
+        .videoCodec('libx264')
+        .noAudio()
+        .mergeToFile('temp/' + videoKey + '.' + options.format, function() {
+          console.log('merge');
           fs.readFile('temp/' + videoKey + '.' + options.format, function(err, data) {
             if (err) {
               return callback('There was an issue reading the video file'); // Fail if the file can't be read.

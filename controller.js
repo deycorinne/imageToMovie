@@ -67,80 +67,93 @@ exports.imageToMovieS3 = function(s3KeyArray, bucket, videoKey, options, fn) {
 
   var command = ffmpeg();
   var imageArray = [];
-  var bufferArray = [];
 
-  // go through each image in array and convert to buffer for easy conversion to movie
-  // also make sure all images are the same size
-  // TODO: Need to set up to work with 1000s of images-- so 5 at a time, not all at once
-  async.each(s3KeyArray, function(s3Key, callback) {
-      s3.getObject({
-        Bucket: bucket,
-        Key: s3Key
-      }, function(err, data) {
-        if (err) {
-          console.log(err);
-          console.log(s3Key);
-          return callback('There was an issue grabbing your files from s3.');
-        }
 
-        var magick = imageMagick(data.Body); // should now be a buffer
-        // check size
-        magick.size(function(err, specs) {
-          if (err || !_.isObject(specs)) {
-            var error = "Could not get image size.";
-            logger.error(error, err, specs)
-            return res.status(500).json({
-              errors: [{
-                title: error,
-                status: 500
-              }]
-            })
-          }
-
-          if (specs.width !== specs.height) {
-            var min = Math.min(specs.width, specs.height);
-            if (specs.width > specs.height) {
-              var x = specs.height * .25;
-              var y = 0;
-              magick.crop(min, min, x, y);
-            } else if (specs.height > specs.width) {
-              var x = 0;
-              var y = specs.width * .25;
-              magick.crop(min, min, x, y);
-            } else { // image is a square
-              magick.crop(min, min, 0, 0);
-            }
-          }
-
-          magick.resize(options.size, options.size).stream(function(err, stdout, stderr) {
+  // Need to set up to work with 1000s of images-- so 5 at a time, not all at once
+  var arrays = [];
+  while (s3KeyArray.length > 0) {
+    arrays.push(s3KeyArray.splice(0, 5));
+  }
+  // loop though each array of 5 and perform the conversion magic
+  async.each(arrays, function(array, cb) {
+      // go through each image in array and convert to buffer for easy conversion to movie
+      // also make sure all images are the same size
+      async.each(array, function(s3Key, callback) {
+          s3.getObject({
+            Bucket: bucket,
+            Key: s3Key
+          }, function(err, data) {
             if (err) {
-              var error = "Could not export image.";
-              logger.error(error, err)
-              return res.status(500).json({
-                errors: [{
-                  title: error,
-                  status: 500
-                }]
-              })
+              console.log(err);
+              return callback('There was an issue grabbing your files from s3.');
             }
-            var buffer = new Buffer(0);
-            stdout.on('data', function(d) {
-              buffer = Buffer.concat([buffer, d]);
-            });
-            stdout.on('end', function() {
-              fs.writeFile('temp/' + options.size + s3Key + '.jpg', buffer, function(err) {
-                if (err) {
-                  return callback('There was an issue saving your files in the new format'); // Fail if the file can't be saved.
-                }
 
-                command.addInput('temp/' + options.size + s3Key + '.jpg');
-                imageArray.push('temp/' + options.size + s3Key + '.jpg');
-                callback();
+            var magick = imageMagick(data.Body); // should now be a buffer
+            // check size
+            magick.size(function(err, specs) {
+              if (err || !_.isObject(specs)) {
+                var error = "Could not get image size.";
+                logger.error(error, err, specs)
+                return res.status(500).json({
+                  errors: [{
+                    title: error,
+                    status: 500
+                  }]
+                })
+              }
+
+              if (specs.width !== specs.height) {
+                var min = Math.min(specs.width, specs.height);
+                if (specs.width > specs.height) {
+                  var x = specs.height * .25;
+                  var y = 0;
+                  magick.crop(min, min, x, y);
+                } else if (specs.height > specs.width) {
+                  var x = 0;
+                  var y = specs.width * .25;
+                  magick.crop(min, min, x, y);
+                } else { // image is a square
+                  magick.crop(min, min, 0, 0);
+                }
+              }
+
+              magick.resize(options.size, options.size).stream(function(err, stdout, stderr) {
+                if (err) {
+                  var error = "Could not export image.";
+                  logger.error(error, err)
+                  return res.status(500).json({
+                    errors: [{
+                      title: error,
+                      status: 500
+                    }]
+                  })
+                }
+                var buffer = new Buffer(0);
+                stdout.on('data', function(d) {
+                  buffer = Buffer.concat([buffer, d]);
+                });
+                stdout.on('end', function() {
+                  //ffmpeg only can take one buffer at a time and addition files so we have to save them all locally
+                  fs.writeFile('temp/' + options.size + s3Key + '.jpg', buffer, function(err) {
+                    if (err) {
+                      return callback('There was an issue saving your files in the new format'); // Fail if the file can't be saved.
+                    }
+
+                    command.addInput('temp/' + options.size + s3Key + '.jpg');
+                    imageArray.push('temp/' + options.size + s3Key + '.jpg');
+                    callback();
+                  });
+                });
               });
             });
           });
+        },
+        function(err) {
+          if (err) {
+            return cb(err, null);
+          }
+          cb();
         });
-      });
     },
     function(err) {
       if (err) {

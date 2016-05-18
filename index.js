@@ -15,7 +15,7 @@ var controller = require('./controller.js');
 var options = {
   title: 'myvideo',
   fps: 50,
-  duration: 134.5, //seconds
+  duration: 10, //seconds
   size: 200,
   format: 'mp4',
   delete: false
@@ -25,7 +25,10 @@ var s3Keys = [
   'image1',
   'image2',
   'image3',
-  'image4'
+  'image4',
+  'image5',
+  'image6',
+  'image7'
 ];
 
 

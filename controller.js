@@ -15,11 +15,10 @@
 var allowedFormats = ["hls", "mp4"];
 var _ = require("underscore");
 var async = require("async");
-var videoshow = require("videoshow");
 var fs = require("fs");
 var gm = require("gm");
 var AWS = require('aws-sdk');
-var ffmpeg = require("ffmpeg");
+var ffmpeg = require('fluent-ffmpeg');
 var config = require('./config.js');
 var imageMagick = gm.subClass({
   imageMagick: true
@@ -146,8 +145,8 @@ exports.imageToMovie = function(imageArray, imageArrayDirectory, options, fn) {
         format: options.format
       }
 
-      // source: https://github.com/h2non/videoshow/tree/master/lib
-      videoshow(jpgImageArray, videoOptions)
+      source: https: //github.com/h2non/videoshow/tree/master/lib
+        videoshow(jpgImageArray, videoOptions)
         .save(imageArrayDirectory + videoTitle)
         .on('error', function(err, stdout, stderr) {
           return fn(err, null);
@@ -187,10 +186,12 @@ exports.imageToMovieS3 = function(s3KeyArray, bucket, videoKey, options, fn) {
   options.size = options.size || 200;
   options.delete = options.delete || false;
 
-  var jpgImageArray = [];
+  var command = ffmpeg();
+  var imageArray = [];
 
   // go through each image in array and convert to buffer for easy conversion to movie
   // also make sure all images are the same size
+  // Need to set up to work with 1000s of images-- so 5 at a time, not all at once
   async.each(s3KeyArray, function(s3Key, callback) {
       s3.getObject({
         Bucket: bucket,
@@ -252,7 +253,8 @@ exports.imageToMovieS3 = function(s3KeyArray, bucket, videoKey, options, fn) {
                   return callback('There was an issue saving your files in the new format'); // Fail if the file can't be saved.
                 }
 
-                jpgImageArray.push('temp/' + options.size + s3Key + '.jpg');
+                command.addInput('temp/' + options.size + s3Key + '.jpg');
+                imageArray.push('temp/' + options.size + s3Key + '.jpg');
                 callback();
               });
             });
@@ -264,23 +266,18 @@ exports.imageToMovieS3 = function(s3KeyArray, bucket, videoKey, options, fn) {
       if (err) {
         return fn(err, null);
       }
-
-      var videoTitle = options.title + '.' + options.format;
-      var videoOptions = {
-        fps: options.duration,
-        transition: false,
-        videoBitrate: 1024,
-        videoCodec: 'libx264',
-        format: options.format
-      }
-
-      // source: https://github.com/h2non/videoshow/tree/master/lib
-      videoshow(jpgImageArray, videoOptions)
-        .save('temp/' + videoKey + '.' + options.format)
-        .on('error', function(err, stdout, stderr) {
-          return fn(err);
+      console.log('here');
+      command.fps(options.duration)
+        .size('640x?')
+        .on('start', function(commandLine) {
+          console.log('Spawned Ffmpeg with command: ' + commandLine);
         })
-        .on('end', function(output) {
+        .on('error', function(err, stdout, stderr) {
+          console.log('Cannot process video: ' + err.message);
+        })
+        .save('temp/' + videoKey + '.' + options.format)
+        .on('end', function(stdout, stderr) {
+          console.log('this ended');
           fs.readFile('temp/' + videoKey + '.' + options.format, function(err, data) {
             if (err) {
               return callback('There was an issue reading the video file'); // Fail if the file can't be read.
@@ -297,8 +294,8 @@ exports.imageToMovieS3 = function(s3KeyArray, bucket, videoKey, options, fn) {
                 return fn("Unable to save video to s3.");
               }
 
-              async.each(jpgImageArray, function(jpgImage, callback) {
-                fs.unlink(jpgImage, function(err) {
+              async.each(imageArray, function(imagePath, callback) {
+                fs.unlink(imagePath, function(err) {
                   if (err) {
                     return callback('There was an issue removing the temp files');
                   }

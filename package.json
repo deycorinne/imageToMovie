@@ -6,6 +6,7 @@
   "dependencies": {
     "express": "^4.13.4",
     "ffmpeg": "0.0.4",
+    "fluent-ffmpeg": "^2.1.0",
     "fs": "0.0.2",
     "gm": "^1.22.0",
     "underscore": "^1.8.3",

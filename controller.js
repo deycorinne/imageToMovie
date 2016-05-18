@@ -2,14 +2,16 @@
  * Corinne Konoza
  * Tuesday May 10, 2016
  *
- * This file should contain two exportable functions.
- * The first function imageToMovie can take a array of images (jpeg, png, etc.)
- * and convert them to a video (in the specified format) by giving the duration the image
- * should appear (to a minimum of 1/30th i.e. 30 frames per second)
- * The second function imageToMovieS3 can take an array of s3 keys and will convert the
+ * This file should contain one exportable function.
+ * imageToMovieS3 can take an array of s3 keys and will convert the
  * images attached to those keys into a video that is then saved in the provided bucket
- * with the provided key. This function has an additonal option-- delete-- that when set
- * to true has all of the original s3 keys deleted
+ * with the provided key. This function has options that can be used to specify video features
+ * options.delete-- when set to true has all of the original s3 keys deleted
+ * options.format-- video format
+ * options.title-- video title
+ * options.fps--- video fps
+ * options.size--- video size
+ * options.duration-- video duration
  */
 
 var allowedFormats = ["hls", "mp4"];

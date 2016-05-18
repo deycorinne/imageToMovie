@@ -15,7 +15,7 @@ var controller = require('./controller.js');
 var options = {
   title: 'myvideo',
   fps: 50,
-  duration: 300, //seconds
+  duration: 134.5, //seconds
   size: 200,
   format: 'mp4',
   delete: false

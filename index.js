@@ -14,7 +14,8 @@ var controller = require('./controller.js');
 
 var options = {
   title: 'myvideo',
-  duration: 50, //fps
+  fps: 50,
+  duration: 300, //seconds
   size: 200,
   format: 'mp4',
   delete: false
@@ -27,13 +28,6 @@ var s3Keys = [
   'image4'
 ];
 
-var config = require('./config.js');
-var AWS = require('aws-sdk');
-var s3 = new AWS.S3({
-  accessKeyId: config.aws.accessKeyId,
-  secretAccessKey: config.aws.secretAccessKey
-});
-
 
 controller.imageToMovieS3(s3Keys, 'corinne-test', 'myvideo', options, function(err, result) {
   if (err) {
@@ -41,9 +35,3 @@ controller.imageToMovieS3(s3Keys, 'corinne-test', 'myvideo', options, function(e
   }
   console.log('RESULT:', result);
 });
-
-// var filePath = "output";
-// var commands = "D:\\ffmpeg-win32-static\\bin\\ffmpeg -f 200image1.jpg -i " + filePath + "\\200image2.jpg " + filePath + "\\video.mp4";
-// System.out.println(commands);
-// Runtime.getRuntime().exec(commands);
-// System.out.println(fileP.getAbsolutePath());

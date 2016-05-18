@@ -28,135 +28,7 @@ var s3 = new AWS.S3({
   secretAccessKey: config.aws.secretAccessKey
 });
 
-//TODO: fix duration * optimize bc this is soo slow
-
-// options- title, format, duration, size
-exports.imageToMovie = function(imageArray, imageArrayDirectory, options, fn) {
-
-  // validate inputs given
-  if (!_.isArray(imageArray)) {
-    return fn('An array of images must be provided to complete this action', null);
-  }
-
-  if (!_.isString(imageArrayDirectory)) {
-    return fn('Please provide a valid directory for your image array', null);
-  }
-
-  if (options.format && (!_.isString(options.format) || (allowedFormats.indexOf(options.format) < 0))) {
-    return fn('Please provide a valid video format', null);
-  }
-
-  if (options.title && !_.isString(options.title)) {
-    return fn('Please provide a valid title for your video', null);
-  }
-
-  if (options.duration && (!_.isNumber(options.duration) || options.duration < 30)) {
-    return fn('Please provide a valid duration', null);
-  }
-
-  if (options.size && !_.isNumber(options.size)) {
-    return fn('Please provide a valid video size', null);
-  }
-
-  options.format = options.format || 'mp4';
-  options.title = options.title || 'video';
-  options.duration = options.duration || 50;
-  options.size = options.size || 200;
-
-  var jpgImageArray = [];
-
-  // go through each image in array and convert to buffer for easy conversion to movie
-  // also make sure all images are the same size
-  async.each(imageArray, function(imageFile, callback) {
-      fs.readFile(imageArrayDirectory + imageFile, function(err, data) {
-        if (err) {
-          return callback('There was an issue processing your files.'); // Fail if the file can't be read.
-        }
-
-        var magick = imageMagick(data); // should now be a buffer
-        // check size
-        magick.size(function(err, specs) {
-          if (err || !_.isObject(specs)) {
-            var error = "Could not get image size.";
-            logger.error(error, err, specs)
-            return res.status(500).json({
-              errors: [{
-                title: error,
-                status: 500
-              }]
-            })
-          }
-
-          if (specs.width !== specs.height) {
-            var min = Math.min(specs.width, specs.height);
-            if (specs.width > specs.height) {
-              var x = specs.height * .25;
-              var y = 0;
-              magick.crop(min, min, x, y);
-            } else if (specs.height > specs.width) {
-              var x = 0;
-              var y = specs.width * .25;
-              magick.crop(min, min, x, y);
-            } else { // image is a square
-              magick.crop(min, min, 0, 0);
-            }
-          }
-
-          magick.resize(options.size, options.size).stream(function(err, stdout, stderr) {
-            if (err) {
-              var error = "Could not export image.";
-              logger.error(error, err)
-              return res.status(500).json({
-                errors: [{
-                  title: error,
-                  status: 500
-                }]
-              })
-            }
-            var buffer = new Buffer(0);
-            stdout.on('data', function(d) {
-              buffer = Buffer.concat([buffer, d]);
-            });
-            stdout.on('end', function() {
-              fs.writeFile(imageArrayDirectory + options.size + imageFile, buffer, function(err) {
-                if (err) {
-                  return callback('There was an issue saving your files in the new format'); // Fail if the file can't be saved.
-                }
-
-                jpgImageArray.push(imageArrayDirectory + options.size + imageFile);
-                callback();
-              });
-            });
-          });
-        });
-      });
-    },
-    function(err) {
-      if (err) {
-        return fn(err, null);
-      }
-
-      var videoTitle = options.title + '.' + options.format;
-      var videoOptions = {
-        fps: options.duration,
-        transition: false,
-        videoBitrate: 1024,
-        videoCodec: 'libx264',
-        format: options.format
-      }
-
-      source: https: //github.com/h2non/videoshow/tree/master/lib
-        videoshow(jpgImageArray, videoOptions)
-        .save(imageArrayDirectory + videoTitle)
-        .on('error', function(err, stdout, stderr) {
-          return fn(err, null);
-        })
-        .on('end', function(output) {
-          return fn(null, output);
-        })
-    });
-}
-
+//TODO: fix duration
 exports.imageToMovieS3 = function(s3KeyArray, bucket, videoKey, options, fn) {
 
   // validate inputs given
@@ -172,26 +44,32 @@ exports.imageToMovieS3 = function(s3KeyArray, bucket, videoKey, options, fn) {
     return fn('Please provide a valid title for your video', null);
   }
 
-  if (options.duration && (!_.isNumber(options.duration) || options.duration < 30)) {
-    return fn('Please provide a valid duration', null);
+  if (options.fps && (!_.isNumber(options.fps) || options.fps < 30)) {
+    return fn('Please provide a valid fps', null);
   }
 
   if (options.size && !_.isNumber(options.size)) {
     return fn('Please provide a valid video size', null);
   }
 
+  if (options.duration && !_.isNumber(options.duration)) {
+    return fn('Please provide a valid video duration', null);
+  }
+
   options.format = options.format || 'mp4';
   options.title = options.title || 'video';
   options.duration = options.duration || 50;
+  options.fps = options.fps || 20;
   options.size = options.size || 200;
   options.delete = options.delete || false;
 
   var command = ffmpeg();
   var imageArray = [];
+  var bufferArray = [];
 
   // go through each image in array and convert to buffer for easy conversion to movie
   // also make sure all images are the same size
-  // Need to set up to work with 1000s of images-- so 5 at a time, not all at once
+  // TODO: Need to set up to work with 1000s of images-- so 5 at a time, not all at once
   async.each(s3KeyArray, function(s3Key, callback) {
       s3.getObject({
         Bucket: bucket,
@@ -266,18 +144,16 @@ exports.imageToMovieS3 = function(s3KeyArray, bucket, videoKey, options, fn) {
       if (err) {
         return fn(err, null);
       }
-      console.log('here');
-      command.fps(options.duration)
-        .size('640x?')
-        .on('start', function(commandLine) {
-          console.log('Spawned Ffmpeg with command: ' + commandLine);
-        })
+
+      command.fps(options.fps)
+        .duration(options.duration)
+        .size(options.size + 'x?')
         .on('error', function(err, stdout, stderr) {
           console.log('Cannot process video: ' + err.message);
+          return fn('Could not process video');
         })
         .save('temp/' + videoKey + '.' + options.format)
         .on('end', function(stdout, stderr) {
-          console.log('this ended');
           fs.readFile('temp/' + videoKey + '.' + options.format, function(err, data) {
             if (err) {
               return callback('There was an issue reading the video file'); // Fail if the file can't be read.

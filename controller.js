@@ -161,26 +161,20 @@ exports.imageToMovieS3 = function(s3KeyArray, bucket, videoKey, options, fn) {
         return fn(err, null);
       }
 
-
-      //.fps(options.fps)
-      //.loop(options.duration)
-      //.size(options.size + 'x?')
       command.on('error', function(err, stdout, stderr) {
-          console.log(err);
-          console.log(stderr);
-          console.log('Cannot process video: ' + err.message);
+          //console.log('~~~~Error~~~~~\n', err);
+          console.log('~~~~Stderr~~~~~\n', stderr);
           return fn('Could not process video');
-        })
-        .on('end', function(stdout, stderr) {
-          console.log('ended');
         })
         .videoCodec('libx264')
         .noAudio()
-        .mergeToFile('temp/' + videoKey + '.' + options.format, function() {
-          console.log('merge');
+        .mergeToFile('temp/' + videoKey + '.' + options.format)
+        .on('end', function(stdout, stderr) {
+          console.log('done');
+          //  console.log('merge');
           fs.readFile('temp/' + videoKey + '.' + options.format, function(err, data) {
             if (err) {
-              return callback('There was an issue reading the video file'); // Fail if the file can't be read.
+              return fn('There was an issue reading the video file'); // Fail if the file can't be read.
             }
             var details = {
               Bucket: bucket,
